@@ -206,18 +206,18 @@ int doctor(bool structured) {
                           << std::endl;
             } else {
                 std::cout << "Tiny Robotic Voice\nPlatform: macOS arm64\n"
-                          << "Speech engine: Flite\nVoice: cmu_us_kal\n"
+                          << "Speech engine: Flite\nVoice: cmu_us_kal16\n"
                           << "Status: unsupported\nReason: " << error << '\n';
             }
             return kExitAudioUnavailable;
         }
         audio.stop();
         if (structured) {
-            std::cout << R"({"type":"doctor","status":"supported","supported":true,"platform":"macOS arm64","speech_engine":"Flite","voice":"cmu_us_kal","audio_backend":"Core Audio","output_device":"available"})"
+            std::cout << R"({"type":"doctor","status":"supported","supported":true,"platform":"macOS arm64","speech_engine":"Flite","voice":"cmu_us_kal16","audio_backend":"Core Audio","output_device":"available"})"
                       << std::endl;
         } else {
             std::cout << "Tiny Robotic Voice\nPlatform: macOS arm64\n"
-                      << "Speech engine: Flite\nVoice: cmu_us_kal\n"
+                      << "Speech engine: Flite\nVoice: cmu_us_kal16\n"
                       << "Audio backend: Core Audio\nOutput device: available\nStatus: ready\n";
         }
         return 0;

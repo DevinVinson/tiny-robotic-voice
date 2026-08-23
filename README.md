@@ -4,7 +4,7 @@ Local streaming text-to-speech for AI agents.
 
 - Streams partial responses before generation is complete
 - Runs locally with no API key, cloud speech, or network access
-- Uses bundled Flite `cmu_us_kal` speech rather than operating-system TTS
+- Uses bundled Flite `cmu_us_kal16` speech rather than operating-system TTS
 - Interrupts obsolete speech without restarting the process
 - Keeps text and audio memory bounded
 
