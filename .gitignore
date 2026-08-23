@@ -1,0 +1,14 @@
+.DS_Store
+build/
+third_party/flite/build/
+third_party/flite/bin/
+third_party/flite/config/config
+third_party/flite/config/system.mak
+third_party/flite/config.status
+third_party/flite/main/flite_lang_list.c
+third_party/flite/main/flite_voice_list.c
+third_party/flite/main/*.o
+third_party/flite/tools/*.o
+
+.local/
+.pr/
