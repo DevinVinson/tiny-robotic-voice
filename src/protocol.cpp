@@ -59,6 +59,23 @@ ParseResult parse_command(const std::string& line) {
         }
         if (type == "start") {
             command.type = CommandType::Start;
+            if (yyjson_val* voice = yyjson_obj_get(root, "voice")) {
+                if (!yyjson_is_obj(voice)) {
+                    return fail("invalid_voice_settings",
+                                "Optional field 'voice' must be an object.");
+                }
+                char* encoded = yyjson_val_write(voice, YYJSON_WRITE_NOFLAG, nullptr);
+                if (!encoded) {
+                    return fail("invalid_voice_settings",
+                                "Voice settings could not be decoded.");
+                }
+                const auto parsed_voice = parse_voice_settings_json(encoded);
+                std::free(encoded);
+                if (!parsed_voice.settings) {
+                    return fail("invalid_voice_settings", parsed_voice.message);
+                }
+                command.voice = *parsed_voice.settings;
+            }
         } else if (type == "append") {
             command.type = CommandType::Append;
             if (!get_string(root, "text", command.text)) {
@@ -90,7 +107,7 @@ ParseResult parse_command(const std::string& line) {
 std::string json_event(const std::string& type, const std::string& session,
                        const std::string& code, const std::string& message,
                        bool recoverable, std::optional<std::int64_t> seq,
-                       std::optional<std::size_t> bytes) {
+                       std::optional<std::size_t> bytes, const VoiceSettings* voice) {
     MutDocPtr doc(yyjson_mut_doc_new(nullptr), &yyjson_mut_doc_free);
     yyjson_mut_val* root = yyjson_mut_obj(doc.get());
     yyjson_mut_doc_set_root(doc.get(), root);
@@ -110,6 +127,16 @@ std::string json_event(const std::string& type, const std::string& session,
     }
     if (bytes) {
         yyjson_mut_obj_add_uint(doc.get(), root, "bytes", *bytes);
+    }
+    if (voice) {
+        yyjson_mut_val* settings = yyjson_mut_obj(doc.get());
+        yyjson_mut_obj_add_strcpy(doc.get(), settings, "preset", voice->preset.c_str());
+        yyjson_mut_obj_add_real(doc.get(), settings, "speed", voice->speed);
+        yyjson_mut_obj_add_real(doc.get(), settings, "pitch_semitones",
+                                voice->pitch_semitones);
+        yyjson_mut_obj_add_real(doc.get(), settings, "expression", voice->expression);
+        yyjson_mut_obj_add_real(doc.get(), settings, "gain_db", voice->gain_db);
+        yyjson_mut_obj_add_val(doc.get(), root, "voice", settings);
     }
     char* encoded = yyjson_mut_write(doc.get(), YYJSON_WRITE_NOFLAG, nullptr);
     if (!encoded) {

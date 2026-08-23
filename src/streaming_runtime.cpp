@@ -1,5 +1,6 @@
 #include "trv/streaming_runtime.h"
 
+#include "trv/audio_processing.h"
 #include "trv/chunker.h"
 
 #include <chrono>
@@ -19,6 +20,7 @@ struct SynthesisJob {
     std::uint64_t generation;
     std::string session;
     std::string text;
+    VoiceSettings voice;
 };
 
 class JobQueue {
@@ -99,13 +101,17 @@ struct StreamingRuntime::Impl {
     bool active = false;
     bool accepting = false;
     bool speaking_emitted = false;
+    VoiceSettings default_voice;
+    VoiceSettings current_voice;
     std::uint64_t generation = 0;
     std::string session;
     std::string buffer;
     Clock::time_point last_append = Clock::now();
 
-    Impl(SpeechEngine& speech_engine, AudioSink& audio_sink, EventSink events)
-        : speech(speech_engine), audio(audio_sink), emit(std::move(events)) {}
+    Impl(SpeechEngine& speech_engine, AudioSink& audio_sink, EventSink events,
+         VoiceSettings voice)
+        : speech(speech_engine), audio(audio_sink), emit(std::move(events)),
+          default_voice(std::move(voice)), current_voice(default_voice) {}
 
     void error(const std::string& code, const std::string& message,
                bool recoverable = true, const std::string& error_session = {}) {
@@ -123,7 +129,7 @@ struct StreamingRuntime::Impl {
             owned_text_bytes.fetch_sub(bytes, std::memory_order_relaxed);
             return true;
         }
-        if (!jobs.push({generation, session, phrase})) {
+        if (!jobs.push({generation, session, phrase, current_voice})) {
             return false;
         }
         outstanding_jobs.fetch_add(1, std::memory_order_release);
@@ -150,7 +156,8 @@ struct StreamingRuntime::Impl {
                 job.generation == current_generation.load(std::memory_order_acquire);
             if (valid_before) {
                 try {
-                    PcmAudio pcm = speech.synthesize(job.text);
+                    PcmAudio pcm = speech.synthesize(job.text, job.voice);
+                    apply_output_gain(pcm, job.voice);
                     if (job.generation == current_generation.load(std::memory_order_acquire) &&
                         !pcm.samples.empty()) {
                         if (audio.enqueue(job.generation, std::move(pcm))) {
@@ -197,8 +204,10 @@ struct StreamingRuntime::Impl {
     }
 };
 
-StreamingRuntime::StreamingRuntime(SpeechEngine& speech, AudioSink& audio, EventSink events)
-    : impl_(std::make_unique<Impl>(speech, audio, std::move(events))) {}
+StreamingRuntime::StreamingRuntime(SpeechEngine& speech, AudioSink& audio, EventSink events,
+                                   VoiceSettings default_voice)
+    : impl_(std::make_unique<Impl>(speech, audio, std::move(events),
+                                   std::move(default_voice))) {}
 
 StreamingRuntime::~StreamingRuntime() { shutdown(false); }
 
@@ -220,6 +229,14 @@ bool StreamingRuntime::handle(const Command& command) {
                              command.session);
                 return true;
             }
+            impl_->current_voice = impl_->default_voice;
+            std::string settings_error;
+            if (!apply_voice_settings_patch(impl_->current_voice, command.voice,
+                                            settings_error)) {
+                impl_->error("invalid_voice_settings", settings_error, true,
+                             command.session);
+                return true;
+            }
             impl_->generation = impl_->current_generation.fetch_add(1) + 1;
             impl_->audio.set_valid_generation(impl_->generation);
             impl_->active = true;
@@ -228,7 +245,8 @@ bool StreamingRuntime::handle(const Command& command) {
             impl_->session = command.session;
             impl_->buffer.clear();
             impl_->last_append = Clock::now();
-            impl_->emit(json_event("session_started", impl_->session));
+            impl_->emit(json_event("session_started", impl_->session, {}, {}, false,
+                                   std::nullopt, std::nullopt, &impl_->current_voice));
             return true;
         }
         case CommandType::Append: {

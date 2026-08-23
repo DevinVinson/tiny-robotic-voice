@@ -6,6 +6,7 @@ cst_voice* register_cmu_us_kal(const char* voxdir);
 void unregister_cmu_us_kal(cst_voice* voice);
 }
 
+#include <cmath>
 #include <stdexcept>
 
 namespace trv {
@@ -33,7 +34,15 @@ public:
 
     int sample_rate() const override { return sample_rate_; }
 
-    PcmAudio synthesize(const std::string& text) override {
+    PcmAudio synthesize(const std::string& text,
+                        const VoiceSettings& settings) override {
+        flite_feat_set_float(voice_->features, "duration_stretch",
+                             static_cast<float>(1.1 / settings.speed));
+        flite_feat_set_float(
+            voice_->features, "f0_shift",
+            static_cast<float>(std::pow(2.0, settings.pitch_semitones / 12.0)));
+        flite_feat_set_float(voice_->features, "int_f0_target_stddev",
+                             static_cast<float>(11.0 * settings.expression));
         cst_wave* wave = flite_text_to_wave(text.c_str(), voice_);
         if (!wave) {
             throw std::runtime_error("Flite did not produce a waveform.");

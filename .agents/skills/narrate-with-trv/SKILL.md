@@ -16,6 +16,12 @@ Use TRV to make progress audible while completing the user's actual task.
 
 Use `./build/trv say "<message>"` from the repository root. If the executable is missing, build it with `make` before beginning narration.
 
+TRV automatically uses a `.trv.json` file in that repository root, so a repo can
+give all agent narration a consistent voice. Respect that configuration. Use
+`--config <path>` only when the user asks for another saved voice, or voice flags
+such as `--preset`, `--speed`, and `--pitch-semitones` when they explicitly ask
+for a temporary variation.
+
 Run TRV through the environment's approved host or outside-sandbox execution mechanism. A sandboxed process may initialize Core Audio and exit successfully without producing audible speaker output. Request the required audio-execution approval once; if it is denied or audio is unavailable, continue the task with written updates and report that narration could not be played.
 
 ## Narration style

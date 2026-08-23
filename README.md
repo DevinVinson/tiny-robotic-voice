@@ -19,6 +19,7 @@ Install Apple's Command Line Tools if necessary, then build:
 make
 ./build/trv doctor
 ./build/trv say "Tiny Robotic Voice is working."
+./build/trv say --preset tiny "This version is smaller and brighter."
 ```
 
 The repository vendors pinned source revisions of Flite, miniaudio, and yyjson.
@@ -33,9 +34,9 @@ diagnostics go to standard error. `ready` means the speech engine, bundled voice
 playback device, audio callback, and workers are all usable.
 
 ```jsonl
-{"type":"ready"}
-{"type":"start","session":"response-42"}
-{"type":"session_started","session":"response-42"}
+{"type":"ready","voice":{"preset":"default","speed":1.0,"pitch_semitones":0.0,"expression":1.0,"gain_db":0.0}}
+{"type":"start","session":"response-42","voice":{"preset":"tiny"}}
+{"type":"session_started","session":"response-42","voice":{"preset":"tiny","speed":1.1,"pitch_semitones":4.0,"expression":0.7,"gain_db":-1.0}}
 {"type":"append","session":"response-42","text":"The interesting thing "}
 {"type":"accepted","session":"response-42","bytes":22}
 {"type":"append","session":"response-42","text":"is that speech can begin early."}
@@ -57,7 +58,52 @@ An optional integer `seq` on `append` is echoed by `accepted` or `backpressure`
 errors. Unknown properties are ignored for forward compatibility. Lines larger
 than 1 MiB are rejected.
 
-### Interrupt and replace
+The optional `voice` object on `start` accepts the same settings as the CLI and
+is fixed for that session. `ready` reports process defaults, while
+`session_started` reports the effective settings after session overrides.
+
+## Voice controls and repository presets
+
+Both `say` and `stream` accept these options:
+
+- `--preset default|tiny|deep|flat`
+- `--speed 0.6..1.8` — semantic speed multiplier; larger is faster
+- `--pitch-semitones -12..12` — relative pitch shift
+- `--expression 0..2` — pitch variation; zero is monotone
+- `--gain-db -24..6` — output gain with saturating PCM clipping
+- `--config <path>` — load a specific JSON preset
+- `--no-config` — ignore automatic repository configuration
+
+For a consistent voice within one repository, commit a `.trv.json` file at its
+root. TRV checks only the current working directory, avoiding an unexpected
+configuration inherited from a parent directory. Start from
+`.trv.example.json`:
+
+```json
+{
+  "preset": "tiny",
+  "speed": 1.1,
+  "pitch_semitones": 4,
+  "expression": 0.7,
+  "gain_db": -1
+}
+```
+
+The file may contain a preset, individual settings, or both. Individual values
+override the preset. Resolution order is built-in defaults, JSON configuration,
+CLI options, then a streaming session's `start.voice` object. Unknown keys,
+unknown presets, invalid JSON, non-finite numbers, and out-of-range values fail
+explicitly. Configuration is limited to 64 KiB.
+
+Examples:
+
+```sh
+./build/trv say --speed 1.25 --pitch-semitones 2 "A quick custom voice."
+./build/trv stream --config voices/reviewer.json
+./build/trv say --no-config "Use the built-in default for this one call."
+```
+
+## Interrupt and replace
 
 ```jsonl
 {"type":"start","session":"old"}
@@ -77,18 +123,19 @@ can start immediately through the already-open device.
 
 - `trv doctor [--json]` checks platform, Flite, the voice, Core Audio, and the
   default playback device without speaking.
-- `trv say <text>` synthesizes, plays, drains, and exits.
-- `trv stream` runs the foreground JSONL protocol until `shutdown`, stdin EOF,
-  SIGINT, or SIGTERM.
+- `trv say [voice options] <text>` synthesizes, plays, drains, and exits.
+- `trv stream [voice options]` runs the foreground JSONL protocol until
+  `shutdown`, stdin EOF, SIGINT, or SIGTERM.
 
 Exit codes are `0` for success, `2` for CLI misuse, `3` for an unsupported
-environment, `4` when audio is unavailable, and `5` for an internal failure.
-Protocol errors do not terminate a healthy stream.
+environment, `4` when audio is unavailable, `5` for an internal failure, and `6`
+for invalid or unreadable voice configuration. Protocol errors do not terminate
+a healthy stream.
 
 Stable protocol error codes currently include `invalid_json`, `invalid_message`,
 `missing_field`, `invalid_field`, `unknown_type`, `line_too_large`,
-`invalid_state`, `backpressure`, `synthesis_failed`, `audio_unavailable`,
-`unsupported_environment`, and `internal_error`.
+`invalid_state`, `invalid_voice_settings`, `backpressure`, `synthesis_failed`,
+`audio_unavailable`, `unsupported_environment`, and `internal_error`.
 
 ## Bounds and privacy
 
@@ -122,6 +169,6 @@ required for release and cannot be replaced by CI.
 
 ## Current limitations
 
-This MVP supports one session and one English-focused robotic voice. It has no
-daemon, server, GUI, configuration file, SSML, Markdown processing, alternate
-voice, speed control, neural model, cloud fallback, Linux build, or Windows build.
+This MVP supports one session and one English-focused robotic voice with acoustic
+controls. It has no daemon, server, GUI, SSML, Markdown processing, alternate
+voice model, neural model, cloud fallback, Linux build, or Windows build.

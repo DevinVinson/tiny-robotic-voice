@@ -17,7 +17,8 @@ public:
     using EventSink = std::function<void(const std::string&)>;
     static constexpr std::size_t kMaximumPendingTextBytes = 64 * 1024;
 
-    StreamingRuntime(SpeechEngine& speech, AudioSink& audio, EventSink events);
+    StreamingRuntime(SpeechEngine& speech, AudioSink& audio, EventSink events,
+                     VoiceSettings default_voice = {});
     ~StreamingRuntime();
     StreamingRuntime(const StreamingRuntime&) = delete;
     StreamingRuntime& operator=(const StreamingRuntime&) = delete;

@@ -1,20 +1,29 @@
+#include "trv/audio_processing.h"
 #include "trv/miniaudio_output.h"
 #include "trv/protocol.h"
 #include "trv/speech_engine.h"
 #include "trv/streaming_runtime.h"
+#include "trv/voice_settings.h"
 
 #include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cmath>
 #include <csignal>
+#include <cstdlib>
 #include <fcntl.h>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <mutex>
+#include <optional>
 #include <poll.h>
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 
@@ -22,6 +31,7 @@ constexpr int kExitUsage = 2;
 constexpr int kExitUnsupported = 3;
 constexpr int kExitAudioUnavailable = 4;
 constexpr int kExitInternal = 5;
+constexpr int kExitConfiguration = 6;
 
 volatile std::sig_atomic_t signal_requested = 0;
 int signal_pipe_write = -1;
@@ -37,8 +47,133 @@ void signal_handler(int) {
 void print_usage() {
     std::cerr << "Usage:\n"
               << "  trv doctor [--json]\n"
-              << "  trv say <text>\n"
-              << "  trv stream\n";
+              << "  trv say [voice options] <text>\n"
+              << "  trv stream [voice options]\n\n"
+              << "Voice options:\n"
+              << "  --preset default|tiny|deep|flat\n"
+              << "  --speed 0.6..1.8\n"
+              << "  --pitch-semitones -12..12\n"
+              << "  --expression 0..2\n"
+              << "  --gain-db -24..6\n"
+              << "  --config <path> | --no-config\n";
+}
+
+struct VoiceCliOptions {
+    trv::VoiceSettingsPatch patch;
+    std::optional<std::string> config_path;
+    bool no_config = false;
+    std::vector<std::string> positional;
+    std::string error;
+};
+
+bool parse_number(const std::string& text, double& output) {
+    if (text.empty()) return false;
+    char* end = nullptr;
+    errno = 0;
+    output = std::strtod(text.c_str(), &end);
+    return errno == 0 && end == text.c_str() + text.size() && std::isfinite(output);
+}
+
+VoiceCliOptions parse_voice_cli(int argc, char** argv, int first) {
+    VoiceCliOptions options;
+    bool positional_only = false;
+    for (int index = first; index < argc; ++index) {
+        const std::string argument = argv[index];
+        if (positional_only || argument.empty() || argument[0] != '-') {
+            options.positional.push_back(argument);
+            continue;
+        }
+        if (argument == "--") {
+            positional_only = true;
+            continue;
+        }
+        if (argument == "--no-config") {
+            options.no_config = true;
+            continue;
+        }
+        auto value = [&]() -> std::optional<std::string> {
+            if (index + 1 >= argc) {
+                options.error = "Option '" + argument + "' requires a value.";
+                return std::nullopt;
+            }
+            return std::string(argv[++index]);
+        };
+        if (argument == "--config") {
+            const auto parsed = value();
+            if (!parsed) break;
+            options.config_path = *parsed;
+        } else if (argument == "--preset") {
+            const auto parsed = value();
+            if (!parsed) break;
+            options.patch.preset = *parsed;
+        } else if (argument == "--speed" || argument == "--pitch-semitones" ||
+                   argument == "--expression" || argument == "--gain-db") {
+            const auto parsed = value();
+            if (!parsed) break;
+            double number = 0.0;
+            if (!parse_number(*parsed, number)) {
+                options.error = "Option '" + argument + "' requires a finite number.";
+                break;
+            }
+            if (argument == "--speed") options.patch.speed = number;
+            if (argument == "--pitch-semitones") options.patch.pitch_semitones = number;
+            if (argument == "--expression") options.patch.expression = number;
+            if (argument == "--gain-db") options.patch.gain_db = number;
+        } else {
+            options.error = "Unknown option: " + argument;
+            break;
+        }
+    }
+    if (options.no_config && options.config_path) {
+        options.error = "--config and --no-config cannot be used together.";
+    }
+    return options;
+}
+
+bool load_voice_settings(const VoiceCliOptions& options, trv::VoiceSettings& settings,
+                         std::string& error) {
+    std::optional<std::filesystem::path> path;
+    if (options.config_path) {
+        path = *options.config_path;
+    } else if (!options.no_config) {
+        const std::filesystem::path repository_config = ".trv.json";
+        std::error_code status_error;
+        if (std::filesystem::exists(repository_config, status_error)) {
+            path = repository_config;
+        } else if (status_error) {
+            error = "Could not inspect .trv.json: " + status_error.message();
+            return false;
+        }
+    }
+
+    if (path) {
+        std::error_code size_error;
+        const auto size = std::filesystem::file_size(*path, size_error);
+        if (size_error) {
+            error = "Could not read voice configuration '" + path->string() + "'.";
+            return false;
+        }
+        if (size > trv::kMaximumVoiceConfigBytes) {
+            error = "Voice configuration exceeds the 64 KiB limit.";
+            return false;
+        }
+        std::ifstream file(*path, std::ios::binary);
+        if (!file) {
+            error = "Could not read voice configuration '" + path->string() + "'.";
+            return false;
+        }
+        const std::string json((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+        const auto parsed = trv::parse_voice_settings_json(json);
+        if (!parsed.settings) {
+            error = path->string() + ": " + parsed.message;
+            return false;
+        }
+        if (!trv::apply_voice_settings_patch(settings, *parsed.settings, error)) {
+            return false;
+        }
+    }
+    return trv::apply_voice_settings_patch(settings, options.patch, error);
 }
 
 bool supported_platform() {
@@ -98,7 +233,7 @@ int doctor(bool structured) {
     }
 }
 
-int say(const std::string& text) {
+int say(const std::string& text, const trv::VoiceSettings& settings) {
     if (!supported_platform()) {
         std::cerr << "trv: macOS Apple Silicon is required.\n";
         return kExitUnsupported;
@@ -117,7 +252,8 @@ int say(const std::string& text) {
         }
         constexpr std::uint64_t generation = 1;
         audio.set_valid_generation(generation);
-        trv::PcmAudio pcm = speech->synthesize(text);
+        trv::PcmAudio pcm = speech->synthesize(text, settings);
+        trv::apply_output_gain(pcm, settings);
         if (pcm.samples.empty() || !audio.enqueue(generation, std::move(pcm))) {
             std::cerr << "trv: speech could not be queued for playback.\n";
             return kExitInternal;
@@ -135,7 +271,7 @@ int say(const std::string& text) {
     }
 }
 
-int stream() {
+int stream(const trv::VoiceSettings& settings) {
     if (!supported_platform()) {
         std::cout << trv::json_event("error", {}, "unsupported_environment",
                                     "macOS Apple Silicon is required.", false)
@@ -167,9 +303,10 @@ int stream() {
             std::lock_guard<std::mutex> lock(output_mutex);
             std::cout << event << std::endl;
         };
-        trv::StreamingRuntime runtime(*speech, audio, emit);
+        trv::StreamingRuntime runtime(*speech, audio, emit, settings);
         runtime.start_workers();
-        emit(trv::json_event("ready"));
+        emit(trv::json_event("ready", {}, {}, {}, false, std::nullopt,
+                             std::nullopt, &settings));
 
         bool continue_reading = true;
         bool discarding_oversized_line = false;
@@ -263,11 +400,25 @@ int main(int argc, char** argv) {
     if (command == "doctor" && (argc == 2 || (argc == 3 && std::string(argv[2]) == "--json"))) {
         return doctor(argc == 3);
     }
-    if (command == "say" && argc == 3) {
-        return say(argv[2]);
-    }
-    if (command == "stream" && argc == 2) {
-        return stream();
+    if (command == "say" || command == "stream") {
+        const auto options = parse_voice_cli(argc, argv, 2);
+        const bool valid_positionals =
+            command == "say" ? options.positional.size() == 1 : options.positional.empty();
+        if (!options.error.empty() || !valid_positionals) {
+            if (!options.error.empty()) std::cerr << "trv: " << options.error << '\n';
+            print_usage();
+            return kExitUsage;
+        }
+        trv::VoiceSettings settings;
+        std::string error;
+        if (!load_voice_settings(options, settings, error)) {
+            std::cerr << "trv: " << error << '\n';
+            return kExitConfiguration;
+        }
+        if (command == "say") {
+            return say(options.positional.front(), settings);
+        }
+        return stream(settings);
     }
     print_usage();
     return kExitUsage;

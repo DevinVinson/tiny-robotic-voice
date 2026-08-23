@@ -1,0 +1,7 @@
+{
+  "preset": "tiny",
+  "speed": 1.1,
+  "pitch_semitones": 4,
+  "expression": 0.7,
+  "gain_db": -1
+}

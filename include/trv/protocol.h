@@ -1,5 +1,7 @@
 #pragma once
 
+#include "trv/voice_settings.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -13,6 +15,7 @@ struct Command {
     std::string session;
     std::string text;
     std::optional<std::int64_t> seq;
+    VoiceSettingsPatch voice;
 };
 
 struct ParseResult {
@@ -30,6 +33,7 @@ constexpr std::size_t kMaximumProtocolLineBytes = 1024 * 1024;
                                      const std::string& message = {},
                                      bool recoverable = false,
                                      std::optional<std::int64_t> seq = std::nullopt,
-                                     std::optional<std::size_t> bytes = std::nullopt);
+                                     std::optional<std::size_t> bytes = std::nullopt,
+                                     const VoiceSettings* voice = nullptr);
 
 }  // namespace trv

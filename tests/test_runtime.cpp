@@ -18,9 +18,11 @@ class BlockingSpeech final : public trv::SpeechEngine {
 public:
     int sample_rate() const override { return 8000; }
 
-    trv::PcmAudio synthesize(const std::string& text) override {
+    trv::PcmAudio synthesize(const std::string& text,
+                             const trv::VoiceSettings& settings) override {
         std::unique_lock<std::mutex> lock(mutex);
         synthesized.push_back(text);
+        voices.push_back(settings);
         entered = true;
         condition.notify_all();
         if (block_first && synthesized.size() == 1) {
@@ -47,6 +49,7 @@ public:
     std::mutex mutex;
     std::condition_variable condition;
     std::vector<std::string> synthesized;
+    std::vector<trv::VoiceSettings> voices;
     bool block_first = true;
     bool entered = false;
     bool released = false;
@@ -82,7 +85,7 @@ public:
 
 trv::Command command(trv::CommandType type, std::string session,
                      std::string text = {}) {
-    return {type, std::move(session), std::move(text), std::nullopt};
+    return {type, std::move(session), std::move(text), std::nullopt, {}};
 }
 
 bool wait_for_event(std::mutex& mutex, const std::vector<std::string>& events,
@@ -121,7 +124,10 @@ int main() {
             "This obsolete sentence is long enough to synthesize immediately."));
         speech.wait_until_entered();
         runtime.handle(command(trv::CommandType::Interrupt, "A"));
-        runtime.handle(command(trv::CommandType::Start, "B"));
+        auto replacement = command(trv::CommandType::Start, "B");
+        replacement.voice.preset = "deep";
+        replacement.voice.speed = 1.2;
+        runtime.handle(replacement);
         runtime.handle(command(trv::CommandType::Append, "B",
                                "That response was interrupted. This is the replacement."));
         runtime.handle(command(trv::CommandType::Finish, "B"));
@@ -131,6 +137,7 @@ int main() {
             wait_for_event(event_mutex, events, "\"type\":\"interrupted\"");
         const bool finished = wait_for_event(event_mutex, events, "\"type\":\"finished\"");
         bool only_replacement_played = false;
+        bool replacement_voice_applied = false;
         {
             std::lock_guard<std::mutex> lock(audio.mutex);
             only_replacement_played = !audio.played.empty();
@@ -138,8 +145,15 @@ int main() {
                 only_replacement_played = only_replacement_played && generation == 3;
             }
         }
+        {
+            std::lock_guard<std::mutex> lock(speech.mutex);
+            replacement_voice_applied = speech.voices.size() >= 2 &&
+                speech.voices.back().preset == "deep" &&
+                speech.voices.back().speed == 1.2;
+        }
         runtime.shutdown(false);
-        if (!interrupted || !finished || !only_replacement_played) {
+        if (!interrupted || !finished || !only_replacement_played ||
+            !replacement_voice_applied) {
             std::cerr << "runtime cancellation/replacement test failed\n";
             return 1;
         }
