@@ -8,8 +8,8 @@ They are engineering observations, not product guarantees.
 | Unstripped executable | 3,024,736 bytes |
 | `doctor --json` wall time | 0.19 seconds on first measured run |
 | `say` wall time, including ~2.25 seconds of speech and drain | 2.53 seconds |
-| KAL sample rate | 8,000 Hz mono signed 16-bit PCM |
-| First real synthesis fixture | 18,012 frames |
+| KAL16 sample rate | 16,000 Hz mono signed 16-bit PCM |
+| First real synthesis fixture | 53,546 frames |
 
 The environment sandbox prevented reliable resident-memory sampling through
 `time -l`/`ps`, so no memory number is recorded yet. Queue memory is bounded by

@@ -9,7 +9,7 @@ FLITE_LIB_DIR = $(firstword $(wildcard $(FLITE_DIR)/build/*/lib))
 CPPFLAGS := -Iinclude -Ithird_party/yyjson -Ithird_party/miniaudio -I$(FLITE_DIR)/include
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Wpedantic -pthread
 CFLAGS := -O2 -Wall -Wextra
-LDLIBS = -L$(FLITE_LIB_DIR) -lflite_cmu_us_kal -lflite_usenglish -lflite_cmulex -lflite \
+LDLIBS = -L$(FLITE_LIB_DIR) -lflite_cmu_us_kal16 -lflite_usenglish -lflite_cmulex -lflite \
 	-framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework AVFoundation
 
 TRV_CPP := src/main.cpp src/chunker.cpp src/protocol.cpp src/flite_engine.cpp \
@@ -61,7 +61,7 @@ $(BUILD_DIR)/tests/test_runtime: tests/test_runtime.cpp $(BUILD_DIR)/src/chunker
 $(BUILD_DIR)/tests/test_flite: tests/test_flite.cpp $(BUILD_DIR)/src/flite_engine.o | flite
 	@mkdir -p $(@D)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -L$(FLITE_LIB_DIR) \
-		-lflite_cmu_us_kal -lflite_usenglish -lflite_cmulex -lflite -o $@
+		-lflite_cmu_us_kal16 -lflite_usenglish -lflite_cmulex -lflite -o $@
 
 test: flite $(BUILD_DIR)/tests/test_core $(BUILD_DIR)/tests/test_runtime $(BUILD_DIR)/tests/test_flite
 	$(BUILD_DIR)/tests/test_core
