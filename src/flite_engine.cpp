@@ -1,4 +1,5 @@
 #include "trv/speech_engine.h"
+#include "trv/text_processing.h"
 
 extern "C" {
 #include "flite.h"
@@ -36,6 +37,7 @@ public:
 
     PcmAudio synthesize(const std::string& text,
                         const VoiceSettings& settings) override {
+        const std::string normalized = normalize_text(text);
         flite_feat_set_float(voice_->features, "duration_stretch",
                              static_cast<float>(1.1 / settings.speed));
         flite_feat_set_float(
@@ -43,7 +45,7 @@ public:
             static_cast<float>(std::pow(2.0, settings.pitch_semitones / 12.0)));
         flite_feat_set_float(voice_->features, "int_f0_target_stddev",
                              static_cast<float>(11.0 * settings.expression));
-        cst_wave* wave = flite_text_to_wave(text.c_str(), voice_);
+        cst_wave* wave = flite_text_to_wave(normalized.c_str(), voice_);
         if (!wave) {
             throw std::runtime_error("Flite did not produce a waveform.");
         }
