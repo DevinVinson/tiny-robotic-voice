@@ -157,6 +157,7 @@ struct StreamingRuntime::Impl {
             if (valid_before) {
                 try {
                     PcmAudio pcm = speech.synthesize(job.text, job.voice);
+                    apply_fade_ramps(pcm);
                     apply_output_gain(pcm, job.voice);
                     if (job.generation == current_generation.load(std::memory_order_acquire) &&
                         !pcm.samples.empty()) {

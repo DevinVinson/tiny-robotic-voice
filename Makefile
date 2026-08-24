@@ -14,7 +14,7 @@ LDLIBS = -L$(FLITE_LIB_DIR) -lflite_cmu_us_kal16 -lflite_usenglish -lflite_cmule
 
 TRV_CPP := src/main.cpp src/chunker.cpp src/protocol.cpp src/flite_engine.cpp \
 	src/miniaudio_output.cpp src/streaming_runtime.cpp src/voice_settings.cpp \
-	src/audio_processing.cpp
+	src/audio_processing.cpp src/text_processing.cpp
 TRV_OBJECTS := $(TRV_CPP:%.cpp=$(BUILD_DIR)/%.o) \
 	$(BUILD_DIR)/src/miniaudio_impl.o $(BUILD_DIR)/third_party/yyjson/yyjson.o
 
@@ -45,6 +45,7 @@ $(BUILD_DIR)/third_party/yyjson/yyjson.o: third_party/yyjson/yyjson.c
 
 TEST_COMMON := $(BUILD_DIR)/src/chunker.o $(BUILD_DIR)/src/protocol.o \
 	$(BUILD_DIR)/src/voice_settings.o $(BUILD_DIR)/src/audio_processing.o \
+	$(BUILD_DIR)/src/text_processing.o \
 	$(BUILD_DIR)/third_party/yyjson/yyjson.o
 
 $(BUILD_DIR)/tests/test_core: tests/test_core.cpp $(TEST_COMMON)
@@ -54,11 +55,13 @@ $(BUILD_DIR)/tests/test_core: tests/test_core.cpp $(TEST_COMMON)
 $(BUILD_DIR)/tests/test_runtime: tests/test_runtime.cpp $(BUILD_DIR)/src/chunker.o \
 	$(BUILD_DIR)/src/protocol.o $(BUILD_DIR)/src/streaming_runtime.o \
 	$(BUILD_DIR)/src/voice_settings.o $(BUILD_DIR)/src/audio_processing.o \
+	$(BUILD_DIR)/src/text_processing.o \
 	$(BUILD_DIR)/third_party/yyjson/yyjson.o
 	@mkdir -p $(@D)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@
 
-$(BUILD_DIR)/tests/test_flite: tests/test_flite.cpp $(BUILD_DIR)/src/flite_engine.o | flite
+$(BUILD_DIR)/tests/test_flite: tests/test_flite.cpp $(BUILD_DIR)/src/flite_engine.o \
+	$(BUILD_DIR)/src/text_processing.o | flite
 	@mkdir -p $(@D)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -L$(FLITE_LIB_DIR) \
 		-lflite_cmu_us_kal16 -lflite_usenglish -lflite_cmulex -lflite -o $@

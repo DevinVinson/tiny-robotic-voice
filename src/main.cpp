@@ -253,6 +253,7 @@ int say(const std::string& text, const trv::VoiceSettings& settings) {
         constexpr std::uint64_t generation = 1;
         audio.set_valid_generation(generation);
         trv::PcmAudio pcm = speech->synthesize(text, settings);
+        trv::apply_fade_ramps(pcm);
         trv::apply_output_gain(pcm, settings);
         if (pcm.samples.empty() || !audio.enqueue(generation, std::move(pcm))) {
             std::cerr << "trv: speech could not be queued for playback.\n";
