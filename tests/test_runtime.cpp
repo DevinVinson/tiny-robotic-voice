@@ -125,6 +125,7 @@ int main() {
         speech.wait_until_entered();
         runtime.handle(command(trv::CommandType::Interrupt, "A"));
         auto replacement = command(trv::CommandType::Start, "B");
+        replacement.voice.model = "rms";
         replacement.voice.preset = "deep";
         replacement.voice.speed = 1.2;
         runtime.handle(replacement);
@@ -148,6 +149,7 @@ int main() {
         {
             std::lock_guard<std::mutex> lock(speech.mutex);
             replacement_voice_applied = speech.voices.size() >= 2 &&
+                speech.voices.back().model == "rms" &&
                 speech.voices.back().preset == "deep" &&
                 speech.voices.back().speed == 1.2;
         }

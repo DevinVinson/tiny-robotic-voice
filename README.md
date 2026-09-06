@@ -4,12 +4,12 @@ Local streaming text-to-speech for AI agents.
 
 - Streams partial responses before generation is complete
 - Runs locally with no API key, cloud speech, or network access
-- Uses bundled Flite `cmu_us_kal16` speech rather than operating-system TTS
+- Bundles Flite's `cmu_us_kal16` diphone and `cmu_us_rms` ClusterGen voices
 - Interrupts obsolete speech without restarting the process
 - Keeps text and audio memory bounded
 
-Supported: **macOS on Apple Silicon**. The bundled voice is English-focused and
-intentionally robotic.
+Supported: **macOS on Apple Silicon**. The bundled voices are English-focused
+and intentionally robotic.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ Install Apple's Command Line Tools if necessary, then build:
 make
 ./build/trv doctor
 ./build/trv say "Tiny Robotic Voice is working."
-./build/trv say --preset tiny "This version is smaller and brighter."
+./build/trv say --model rms --preset tiny "This uses ClusterGen."
 ```
 
 The repository vendors pinned source revisions of Flite, miniaudio, and yyjson.
@@ -30,13 +30,13 @@ without its own audio layer; TRV sends its in-memory PCM directly to miniaudio.
 
 Start `./build/trv stream` as a foreground child process. Standard input and
 output use newline-delimited JSON. Standard output contains protocol events only;
-diagnostics go to standard error. `ready` means the speech engine, bundled voice,
+diagnostics go to standard error. `ready` means the speech engine, bundled voices,
 playback device, audio callback, and workers are all usable.
 
 ```jsonl
-{"type":"ready","voice":{"preset":"default","speed":1.0,"pitch_semitones":0.0,"expression":1.0,"gain_db":0.0}}
-{"type":"start","session":"response-42","voice":{"preset":"tiny"}}
-{"type":"session_started","session":"response-42","voice":{"preset":"tiny","speed":1.1,"pitch_semitones":4.0,"expression":0.7,"gain_db":-1.0}}
+{"type":"ready","voice":{"model":"kal16","preset":"default","speed":1.0,"pitch_semitones":0.0,"expression":1.0,"gain_db":0.0}}
+{"type":"start","session":"response-42","voice":{"model":"rms","preset":"tiny"}}
+{"type":"session_started","session":"response-42","voice":{"model":"rms","preset":"tiny","speed":1.1,"pitch_semitones":4.0,"expression":0.7,"gain_db":-1.0}}
 {"type":"append","session":"response-42","text":"The interesting thing "}
 {"type":"accepted","session":"response-42","bytes":22}
 {"type":"append","session":"response-42","text":"is that speech can begin early."}
@@ -66,6 +66,7 @@ is fixed for that session. `ready` reports process defaults, while
 
 Both `say` and `stream` accept these options:
 
+- `--model kal16|rms` — select the Kal16 diphone or RMS ClusterGen model
 - `--preset default|tiny|deep|flat`
 - `--speed 0.6..1.8` — semantic speed multiplier; larger is faster
 - `--pitch-semitones -12..12` — relative pitch shift
@@ -81,6 +82,7 @@ configuration inherited from a parent directory. Start from
 
 ```json
 {
+  "model": "rms",
   "preset": "tiny",
   "speed": 1.1,
   "pitch_semitones": 4,
@@ -89,16 +91,19 @@ configuration inherited from a parent directory. Start from
 }
 ```
 
-The file may contain a preset, individual settings, or both. Individual values
-override the preset. Resolution order is built-in defaults, JSON configuration,
-CLI options, then a streaming session's `start.voice` object. Unknown keys,
-unknown presets, invalid JSON, non-finite numbers, and out-of-range values fail
+The file may contain a model, preset, individual settings, or any combination.
+Individual values override the preset. Presets change acoustic controls without
+changing the selected model. Resolution order is built-in defaults, JSON
+configuration, CLI options, then a streaming session's `start.voice` object.
+The default model is `kal16`; select `rms` for ClusterGen. Unknown keys, models,
+or presets, invalid JSON, non-finite numbers, and out-of-range values fail
 explicitly. Configuration is limited to 64 KiB.
 
 Examples:
 
 ```sh
 ./build/trv say --speed 1.25 --pitch-semitones 2 "A quick custom voice."
+./build/trv say --model rms "Use ClusterGen for this call."
 ./build/trv stream --config voices/reviewer.json
 ./build/trv say --no-config "Use the built-in default for this one call."
 ```
@@ -121,7 +126,7 @@ can start immediately through the already-open device.
 
 ## Commands and exit codes
 
-- `trv doctor [--json]` checks platform, Flite, the voice, Core Audio, and the
+- `trv doctor [--json]` checks platform, Flite, both voices, Core Audio, and the
   default playback device without speaking.
 - `trv say [voice options] <text>` synthesizes, plays, drains, and exits.
 - `trv stream [voice options]` runs the foreground JSONL protocol until
@@ -169,6 +174,6 @@ required for release and cannot be replaced by CI.
 
 ## Current limitations
 
-This MVP supports one session and one English-focused robotic voice with acoustic
-controls. It has no daemon, server, GUI, SSML, Markdown processing, alternate
-voice model, neural model, cloud fallback, Linux build, or Windows build.
+This MVP supports one session and two English-focused robotic voice models with
+acoustic controls. It has no daemon, server, GUI, SSML, Markdown processing,
+neural model, cloud fallback, Linux build, or Windows build.
