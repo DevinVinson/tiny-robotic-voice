@@ -13,8 +13,12 @@ namespace {
 using DocPtr = std::unique_ptr<yyjson_doc, decltype(&yyjson_doc_free)>;
 
 bool known_property(std::string_view key) {
-    return key == "preset" || key == "speed" || key == "pitch_semitones" ||
-           key == "expression" || key == "gain_db";
+    return key == "model" || key == "preset" || key == "speed" ||
+           key == "pitch_semitones" || key == "expression" || key == "gain_db";
+}
+
+bool model(const std::string& name) {
+    return name == "kal16" || name == "rms";
 }
 
 bool number(yyjson_val* object, const char* key, std::optional<double>& output,
@@ -38,13 +42,29 @@ bool number(yyjson_val* object, const char* key, std::optional<double>& output,
 
 bool preset(const std::string& name, VoiceSettings& settings) {
     if (name == "default") {
-        settings = {};
+        settings.preset = "default";
+        settings.speed = 1.0;
+        settings.pitch_semitones = 0.0;
+        settings.expression = 1.0;
+        settings.gain_db = 0.0;
     } else if (name == "tiny") {
-        settings = {"tiny", 1.1, 4.0, 0.7, -1.0};
+        settings.preset = "tiny";
+        settings.speed = 1.1;
+        settings.pitch_semitones = 4.0;
+        settings.expression = 0.7;
+        settings.gain_db = -1.0;
     } else if (name == "deep") {
-        settings = {"deep", 0.9, -4.0, 0.8, 0.0};
+        settings.preset = "deep";
+        settings.speed = 0.9;
+        settings.pitch_semitones = -4.0;
+        settings.expression = 0.8;
+        settings.gain_db = 0.0;
     } else if (name == "flat") {
-        settings = {"flat", 1.0, 0.0, 0.15, 0.0};
+        settings.preset = "flat";
+        settings.speed = 1.0;
+        settings.pitch_semitones = 0.0;
+        settings.expression = 0.15;
+        settings.gain_db = 0.0;
     } else {
         return false;
     }
@@ -54,7 +74,7 @@ bool preset(const std::string& name, VoiceSettings& settings) {
 }  // namespace
 
 bool VoiceSettingsPatch::empty() const {
-    return !preset && !speed && !pitch_semitones && !expression && !gain_db;
+    return !model && !preset && !speed && !pitch_semitones && !expression && !gain_db;
 }
 
 bool apply_voice_settings_patch(VoiceSettings& settings, const VoiceSettingsPatch& patch,
@@ -63,6 +83,11 @@ bool apply_voice_settings_patch(VoiceSettings& settings, const VoiceSettingsPatc
         error = "Unknown voice preset. Expected default, tiny, deep, or flat.";
         return false;
     }
+    if (patch.model && !model(*patch.model)) {
+        error = "Unknown voice model. Expected kal16 or rms.";
+        return false;
+    }
+    if (patch.model) settings.model = *patch.model;
     if (patch.speed) settings.speed = *patch.speed;
     if (patch.pitch_semitones) settings.pitch_semitones = *patch.pitch_semitones;
     if (patch.expression) settings.expression = *patch.expression;
@@ -109,6 +134,16 @@ VoiceSettingsParseResult parse_voice_settings_json(const std::string& json) {
     }
 
     VoiceSettingsPatch patch;
+    if (yyjson_val* model_value = yyjson_obj_get(root, "model")) {
+        if (!yyjson_is_str(model_value)) {
+            return {std::nullopt, "Voice setting 'model' must be a string."};
+        }
+        patch.model = std::string(yyjson_get_str(model_value),
+                                  yyjson_get_len(model_value));
+        if (patch.model->find('\0') != std::string::npos) {
+            return {std::nullopt, "Voice setting 'model' contains an invalid character."};
+        }
+    }
     if (yyjson_val* preset_value = yyjson_obj_get(root, "preset")) {
         if (!yyjson_is_str(preset_value)) {
             return {std::nullopt, "Voice setting 'preset' must be a string."};

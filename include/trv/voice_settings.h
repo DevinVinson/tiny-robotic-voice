@@ -7,6 +7,7 @@
 namespace trv {
 
 struct VoiceSettings {
+    std::string model = "kal16";
     std::string preset = "default";
     double speed = 1.0;
     double pitch_semitones = 0.0;
@@ -15,6 +16,7 @@ struct VoiceSettings {
 };
 
 struct VoiceSettingsPatch {
+    std::optional<std::string> model;
     std::optional<std::string> preset;
     std::optional<double> speed;
     std::optional<double> pitch_semitones;

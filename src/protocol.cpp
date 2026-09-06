@@ -130,6 +130,7 @@ std::string json_event(const std::string& type, const std::string& session,
     }
     if (voice) {
         yyjson_mut_val* settings = yyjson_mut_obj(doc.get());
+        yyjson_mut_obj_add_strcpy(doc.get(), settings, "model", voice->model.c_str());
         yyjson_mut_obj_add_strcpy(doc.get(), settings, "preset", voice->preset.c_str());
         yyjson_mut_obj_add_real(doc.get(), settings, "speed", voice->speed);
         yyjson_mut_obj_add_real(doc.get(), settings, "pitch_semitones",

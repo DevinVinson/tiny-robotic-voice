@@ -1,4 +1,5 @@
 {
+  "model": "kal16",
   "preset": "tiny",
   "speed": 1.1,
   "pitch_semitones": 4,

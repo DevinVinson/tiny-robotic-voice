@@ -50,6 +50,7 @@ void print_usage() {
               << "  trv say [voice options] <text>\n"
               << "  trv stream [voice options]\n\n"
               << "Voice options:\n"
+              << "  --model kal16|rms\n"
               << "  --preset default|tiny|deep|flat\n"
               << "  --speed 0.6..1.8\n"
               << "  --pitch-semitones -12..12\n"
@@ -102,6 +103,10 @@ VoiceCliOptions parse_voice_cli(int argc, char** argv, int first) {
             const auto parsed = value();
             if (!parsed) break;
             options.config_path = *parsed;
+        } else if (argument == "--model") {
+            const auto parsed = value();
+            if (!parsed) break;
+            options.patch.model = *parsed;
         } else if (argument == "--preset") {
             const auto parsed = value();
             if (!parsed) break;
@@ -206,18 +211,20 @@ int doctor(bool structured) {
                           << std::endl;
             } else {
                 std::cout << "Tiny Robotic Voice\nPlatform: macOS arm64\n"
-                          << "Speech engine: Flite\nVoice: cmu_us_rms (ClusterGen)\n"
+                          << "Speech engine: Flite\nDefault model: kal16 (cmu_us_kal16)\n"
+                          << "Available models: kal16 (diphone), rms (ClusterGen)\n"
                           << "Status: unsupported\nReason: " << error << '\n';
             }
             return kExitAudioUnavailable;
         }
         audio.stop();
         if (structured) {
-            std::cout << R"({"type":"doctor","status":"supported","supported":true,"platform":"macOS arm64","speech_engine":"Flite","voice":"cmu_us_rms","voice_technology":"ClusterGen","audio_backend":"Core Audio","output_device":"available"})"
+            std::cout << R"({"type":"doctor","status":"supported","supported":true,"platform":"macOS arm64","speech_engine":"Flite","default_model":"kal16","available_models":["kal16","rms"],"audio_backend":"Core Audio","output_device":"available"})"
                       << std::endl;
         } else {
             std::cout << "Tiny Robotic Voice\nPlatform: macOS arm64\n"
-                      << "Speech engine: Flite\nVoice: cmu_us_rms (ClusterGen)\n"
+                      << "Speech engine: Flite\nDefault model: kal16 (cmu_us_kal16)\n"
+                      << "Available models: kal16 (diphone), rms (ClusterGen)\n"
                       << "Audio backend: Core Audio\nOutput device: available\nStatus: ready\n";
         }
         return 0;
