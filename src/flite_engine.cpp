@@ -2,8 +2,8 @@
 
 extern "C" {
 #include "flite.h"
-cst_voice* register_cmu_us_kal16(const char* voxdir);
-void unregister_cmu_us_kal16(cst_voice* voice);
+cst_voice* register_cmu_us_rms(const char* voxdir);
+void unregister_cmu_us_rms(cst_voice* voice);
 }
 
 #include <cmath>
@@ -16,9 +16,9 @@ class FliteEngine final : public SpeechEngine {
 public:
     FliteEngine() {
         flite_init();
-        voice_ = register_cmu_us_kal16(nullptr);
+        voice_ = register_cmu_us_rms(nullptr);
         if (!voice_) {
-            throw std::runtime_error("The bundled cmu_us_kal16 voice could not be initialized.");
+            throw std::runtime_error("The bundled cmu_us_rms voice could not be initialized.");
         }
         sample_rate_ = feat_int(voice_->features, "sample_rate");
         if (sample_rate_ <= 0) {
@@ -28,7 +28,7 @@ public:
 
     ~FliteEngine() override {
         if (voice_) {
-            unregister_cmu_us_kal16(voice_);
+            unregister_cmu_us_rms(voice_);
         }
     }
 

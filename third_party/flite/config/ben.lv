@@ -2,6 +2,5 @@
 #  The base languages, lexicons and voices
 LEXES += cmulex
 LANGS += usenglish
-VOXES += cmu_us_kal16 
-
+VOXES += cmu_us_rms
 

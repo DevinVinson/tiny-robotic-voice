@@ -7,7 +7,8 @@ files are retained alongside their sources.
 
 - Revision: `6c9f20dc915b17f5619340069889db0aa007fcdc`
 - Source: <https://github.com/festvox/flite>
-- Use: speech core, US English frontend, CMU lexicon, and `cmu_us_kal` voice
+- Use: speech core, US English frontend, CMU lexicon, and `cmu_us_rms`
+  ClusterGen voice
 - License text: [`third_party/flite/COPYING`](third_party/flite/COPYING)
 - Local configuration: built with `--with-audio=none --with-langvox=ben`; upstream
   source is otherwise unmodified.
